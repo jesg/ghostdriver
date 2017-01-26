@@ -74,12 +74,14 @@ try {
             _log.info("Main", "registering to Selenium HUB"+
                 " '" + ghostdriver.config.hub + "' version: " + ghostdriver.config.version +
                 " using '" + ghostdriver.config.ip + ":" + ghostdriver.config.port + "' with " +
+                (ghostdriver.config.remoteHost ? "remoteHost:" + ghostdriver.config.remoteHost + " " : "") +
                 ghostdriver.config.proxy + " as remote proxy.");
             ghostdriver.hub.register(ghostdriver.config.ip,
                 ghostdriver.config.port,
                 ghostdriver.config.hub,
                 ghostdriver.config.proxy,
-                ghostdriver.config.version);
+                ghostdriver.config.version,
+                ghostdriver.config.remoteHost);
         }
     } else {
         throw new Error("Could not start Ghost Driver");
