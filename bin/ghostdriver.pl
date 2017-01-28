@@ -84,4 +84,4 @@ if ( defined $port) {
 	push @new_args, "--port=$port";
 }
 
-exec $phantomjs_path @new_args;
+exec "$phantomjs_path @new_args";
