@@ -325,7 +325,6 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
 
         // Ensure all required parameters are available
         if (typeof(postObj) === "object" && typeof(postObj.value) === "object") {
-            _log.debug('in the initial block');
             // Normalize input: some binding might send an array of single characters
             text = postObj.value.join("");
 
