@@ -93,6 +93,16 @@ js_fragment(name = "rotate",
   function = "phantomjs.atoms.inject.action.rotate",
   deps = [ ":deps" ])
 
+js_fragment(name = "is_file_input",
+  module = "phantomjs.atoms.inject.action",
+  function = "phantomjs.atoms.inject.action.isFileInput",
+  deps = [ ":deps" ])
+
+js_fragment(name = "is_content_editable",
+  module = "phantomjs.atoms.inject.action",
+  function = "phantomjs.atoms.inject.action.isContentEditable",
+  deps = [ ":deps" ])
+
 # List of Atoms that will be compiled for GhostDriver
 js_library(name = "build_atoms",
   deps = [
@@ -107,31 +117,16 @@ js_library(name = "build_atoms",
     ":swipe",
     ":pinch",
     ":rotate",
+    ":is_file_input",
+    ":is_content_editable",
 
     "//javascript/atoms/fragments:execute_script",
     "//javascript/atoms/fragments:execute_async_script",
     "//javascript/atoms/fragments:get_location",
-    "//javascript/atoms/fragments:get_current_position",
 
     "//javascript/chrome-driver:get_location_in_view",
 
-    "//javascript/webdriver/atoms/fragments:get_attribute",
-
     "//javascript/webdriver/atoms/fragments/inject:type",
-    "//javascript/webdriver/atoms/fragments/inject:set_local_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:get_local_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:get_local_storage_keys",
-    "//javascript/webdriver/atoms/fragments/inject:remove_local_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:clear_local_storage",
-    "//javascript/webdriver/atoms/fragments/inject:get_local_storage_size",
-    "//javascript/webdriver/atoms/fragments/inject:set_session_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:get_session_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:get_session_storage_keys",
-    "//javascript/webdriver/atoms/fragments/inject:remove_session_storage_item",
-    "//javascript/webdriver/atoms/fragments/inject:clear_session_storage",
-    "//javascript/webdriver/atoms/fragments/inject:get_session_storage_size",
-    "//javascript/webdriver/atoms/fragments/inject:execute_sql",
-    "//javascript/webdriver/atoms/fragments/inject:get_appcache_status",
     "//javascript/webdriver/atoms/fragments/inject:active_element",
     "//javascript/webdriver/atoms/fragments/inject:submit",
     "//javascript/webdriver/atoms/fragments/inject:clear",

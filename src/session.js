@@ -234,9 +234,11 @@ ghostdriver.Session = function(desiredCapabilities) {
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
                     if (onLoadFinishedArgs !== null) {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "Handle Load Finish Event");
                         // Report the result of the "Load Finished" event
                         onLoadFunc.apply(thisPage, onLoadFinishedArgs);
                     } else {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "No Load Finish Event Detected");
                         // No page load was caused: just report "success"
                         onLoadFunc.call(thisPage, "success");
                     }
@@ -477,6 +479,12 @@ ghostdriver.Session = function(desiredCapabilities) {
                 _clearPageLog(page);
             }
         };
+        // NOTE: The most common screen resolution used online is currently: 1366x768
+        // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
+        page.viewportSize = {
+            width   : 1366,
+            height  : 768
+        };
 
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
@@ -506,7 +514,6 @@ ghostdriver.Session = function(desiredCapabilities) {
             }
         }
 
-        // If we arrived here, means that no window is loading
         return false;
     },
 
@@ -721,6 +728,26 @@ ghostdriver.Session = function(desiredCapabilities) {
         }
 
         return logTypes;
+    },
+
+    _getFrameOffset = function(page) {
+        return page.evaluate(function() {
+            var win = window,
+                offset = {top: 0, left: 0},
+                style,
+                rect;
+
+            while(win.frameElement) {
+                rect = win.frameElement.getClientRects()[0];
+                style = win.getComputedStyle(win.frameElement);
+                win = win.parent;
+
+                offset.top += rect.top + parseInt(style.getPropertyValue('padding-top'), 10);
+                offset.left += rect.left + parseInt(style.getPropertyValue('padding-left'), 10);
+            }
+
+            return offset;
+        });
     };
 
     // Initialize the Session.
@@ -755,6 +782,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         timeoutNames : _const.TIMEOUT_NAMES,
         isLoading : _isLoading,
         getLog: _getLog,
-        getLogTypes: _getLogTypes
+        getLogTypes: _getLogTypes,
+        getFrameOffset: _getFrameOffset
     };
 };

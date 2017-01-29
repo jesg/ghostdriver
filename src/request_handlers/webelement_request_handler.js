@@ -164,11 +164,25 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
         res.respondBasedOnResult(_session, req, locationRes);
     },
 
+    // must be scrolled into view
     _getLocationInViewResult = function (req) {
-        return _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
+        var currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
+            frameOffset = _session.getFrameOffset(currWindow),
+            locationRes;
+
+        locationRes = currWindow.evaluate(
             require("./webdriver_atoms.js").get("execute_script"),
             "return (" + require("./webdriver_atoms.js").get("get_location_in_view") + ")(arguments[0]);",
             [_getJSON()]);
+;
+
+        if(locationRes && locationRes.status !== 0) {
+            return locationRes;
+        }
+
+        locationRes.value.x += frameOffset.left;
+        locationRes.value.y += frameOffset.top;
+        return locationRes;
     },
 
     _getLocationInView = function (req) {
@@ -218,6 +232,49 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
         res.respondBasedOnResult(_session, req, sizeRes);
     },
 
+
+    // coordinates for native click events
+    _getPosition = function(req) {
+        var currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
+            locationRes = _getLocationInViewResult(req),
+            sizeRes = JSON.parse(_getSizeResult(req));
+
+        if(locationRes && locationRes.status !== 0) {
+            return locationRes;
+        }
+
+        if(sizeRes && sizeRes.status !== 0) {
+            return sizeRes;
+        }
+
+        return {status: 0,
+            x: (locationRes.value.x + sizeRes.value.width/2),
+            y: (locationRes.value.y + sizeRes.value.height/2)};
+    },
+
+    _nativeClick = function(req) {
+        var currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
+        clickRes,
+        coords;
+
+        currWindow.evaluate(require("./webdriver_atoms.js").get("scroll_into_view"),_getJSON());
+        var interactableRes = currWindow.evaluate(require("./webdriver_atoms.js").get("is_displayed"), _getJSON());
+        interactableRes = JSON.parse(interactableRes);
+        if (interactableRes && interactableRes.status !== 0) {
+            return interactableRes;
+        }
+
+        coords = _getPosition();
+        if (coords && coords.status !== 0) {
+            return coords;
+        }
+        _session.inputs.mouseMove(_session, coords);
+        _session.inputs.mouseButtonClick(_session, "click", "left");
+        _log.debug("Click at: " + JSON.stringify(coords));
+
+        return {status: 0, value: null};
+    },
+
     _normalizeSpecialChars = function(str) {
         var resultStr = "",
             i, ilen;
@@ -253,97 +310,102 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
             currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
             typeRes,
             text,
+            isFileInputRes,
+            isContentEditableRes,
             fsModule = require("fs"),
             abortCallback = false,
             multiFileText;
 
+        isFileInputRes = currWindow.evaluate(require("./webdriver_atoms.js").get("is_file_input"), _getJSON());
+        isFileInputRes = JSON.parse(isFileInputRes);
+        if (isFileInputRes && isFileInputRes.status !== 0) {
+            res.respondBasedOnResult(_session, req, isFileInputRes);
+            return;
+        }
+
         // Ensure all required parameters are available
         if (typeof(postObj) === "object" && typeof(postObj.value) === "object") {
+            _log.debug('in the initial block');
             // Normalize input: some binding might send an array of single characters
             text = postObj.value.join("");
 
             // Detect if it's an Input File type (that requires special behaviour), and the File actually exists
-            if (_getTagName(currWindow).toLowerCase() === "input" &&
-                _getAttribute(currWindow, "type").toLowerCase() === "file") {
+            if (isFileInputRes.value) {
 
-
-                if (_getAttribute(currWindow, "multiple")) {
-                    // split files by \n like chromedriver
-                    multiFileText = text.split("\n");
-
-                    // abort if file does not exist
-                    for (var i = 0; i < multiFileText.length; ++i) {
-                        if (!fsModule.exists(multiFileText[i])) {
-                            _log.debug("File does not exist: " + multiFileText[i]);
-                            res.success(_session.getId());
-                            return;
-                        }
-                    }
-
-                    // this indirectly clicks on the head element
-                    // hack to workaround phantomjs uploadFile api which requires a selector
-                    currWindow.uploadFile("head", multiFileText);
-
-                    // Click on the element!
-                    typeRes = currWindow.evaluate(require("./webdriver_atoms.js").get("click"), _getJSON());
-                    res.respondBasedOnResult(_session, req, typeRes);
-                    return;
-                }
+                // split files by \n like chromedriver
+                multiFileText = text.split("\n");
 
                 // abort if file does not exist
-                if (!fsModule.exists(text)) {
-                    _log.debug("File does not exist: " + text);
-                     res.success(_session.getId());
-                    return;
-                }
-
-                // Register a one-shot-callback to fill the file picker once invoked by clicking on the element
-                currWindow.setOneShotCallback("onFilePicker", function(oldFile) {
-                    if (abortCallback) {
+                for (var i = 0; i < multiFileText.length; ++i) {
+                    if (!fsModule.exists(multiFileText[i])) {
+                        _log.debug("File does not exist: " + multiFileText[i]);
+                        res.success(_session.getId());
                         return;
                     }
-                    // Send the response as soon as we are done setting the value in the "input[type=file]" element
-                    setTimeout(function() {
-                        res.respondBasedOnResult(_session, req, typeRes);
-                    }, 1);
+                }
 
-                    return text;
-                });
+                // this indirectly clicks on the head element
+                // hack to workaround phantomjs uploadFile api which requires a selector
+                currWindow.uploadFile("head", multiFileText);
 
                 // Click on the element!
-                typeRes = currWindow.evaluate(require("./webdriver_atoms.js").get("click"), _getJSON());
-                typeRes = JSON.parse(typeRes);
-                if (typeRes && typeRes.status !== 0) {
-                    abortCallback = true;
-                    res.respondBasedOnResult(_session, req, typeRes);
-                    return;
-                }
+                typeRes = _nativeClick();
+                res.respondBasedOnResult(_session, req, typeRes);
+                return;
+
             } else {
                 // Normalize for special characters
                 text = _normalizeSpecialChars(text);
 
                 // Execute the "type" atom on an empty string only to force focus to the element.
                 // TODO: This is a hack that needs to be corrected with a proper method to set focus.
-                typeRes = currWindow.evaluate(require("./webdriver_atoms.js").get("type"), _getJSON(), "");
-                typeRes = JSON.parse(typeRes);
+                isContentEditableRes = currWindow.evaluate(require("./webdriver_atoms.js").get("is_content_editable"), _getJSON());
+                isContentEditableRes = JSON.parse(isContentEditableRes);
+                if (isContentEditableRes && isContentEditableRes.status !== 0) {
+                    res.respondBasedOnResult(_session, req, isContentEditableRes);
+                    return;
+                }
+                if (isContentEditableRes.value) {
+                    // must use native click to focus on content editable element
+                    typeRes = _nativeClick();
+                } else {
+                    typeRes = currWindow.evaluate(require("./webdriver_atoms.js").get("type"), _getJSON(), "");
+                    typeRes = JSON.parse(typeRes);
+                }
+
                 if (typeRes && typeRes.status !== 0) {
+                    abortCallback = true;           //< handling the error here
                     res.respondBasedOnResult(_session, req, typeRes);
                     return;
                 }
 
-                // Send keys to the page, using Native Events
-                _session.inputs.sendKeys(_session, text);
+                currWindow.execFuncAndWaitForLoad(function() {
 
-                // Only clear the modifier keys if this was called using element.sendKeys().
-                // Calling this from the Advanced Interactions API doesn't clear the modifier keys.
-                if (req.urlParsed.file === _const.VALUE) {
-                    _session.inputs.clearModifierKeys(_session);
-                }
+                        // Send keys to the page, using Native Events
+                        _session.inputs.sendKeys(_session, text);
 
-                currWindow.waitIfLoading(function() {
-                    // Return the result of this typing
-                    res.respondBasedOnResult(_session, req, typeRes);
-                });
+                        // Only clear the modifier keys if this was called using element.sendKeys().
+                        // Calling this from the Advanced Interactions API doesn't clear the modifier keys.
+                        if (req.urlParsed.file === _const.VALUE) {
+                            _session.inputs.clearModifierKeys(_session);
+                        }
+                    },
+                    function(status) {                   //< onLoadFinished
+                        // Report Load Finished, only if callbacks were not "aborted"
+                        if (!abortCallback) {
+                            res.success(_session.getId());
+                        }
+                    },
+                    function(errMsg) {
+                        var errCode = errMsg === "timeout"
+                            ? _errors.FAILED_CMD_STATUS_CODES.Timeout
+                            : _errors.FAILED_CMD_STATUS_CODES.UnknownError;
+
+                        // Report Load Error, only if callbacks were not "aborted"
+                        if (!abortCallback) {
+                            _errors.handleFailedCommandEH(errCode, "Pageload initiated by click failed. Cause: " + errMsg, req, res, _session);
+                        }
+                    });
             }
             return;
         }
@@ -519,14 +581,6 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
         return JSON.parse(result).value;
     },
 
-    _getTagName = function(currWindow) {
-        var result = currWindow.evaluate(
-                require("./webdriver_atoms.js").get("execute_script"),
-                "return arguments[0].tagName;",
-                [_getJSON()]);
-
-        return result.value;
-    },
 
     /**
      * This method can generate any Element JSON: just provide an ID.

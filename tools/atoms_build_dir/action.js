@@ -37,6 +37,33 @@ goog.require('goog.dom.selection');
 goog.require('webdriver.atoms.element');
 
 /**
+ * Test if an element is a file input element.
+ *
+ * @param {!{bot.inject.ELEMENT_KEY:string}} element The element to focus on.
+ * @return {(string|{status: bot.ErrorCode.<number>, value: *})} A stringified {@link bot.response.ResponseObject}.
+ */
+phantomjs.atoms.inject.action.isFileInput = function(element) {
+    return bot.inject.executeScript(function(e) {
+        if (e.tagName.toLowerCase() === "input") {
+            return e.type.toLowerCase() === "file";
+        }
+        return false;
+    }, [element], true);
+};
+
+/**
+ * Test if an element is a content editable
+ *
+ * @param {!{bot.inject.ELEMENT_KEY:string}} element The element to focus on.
+ * @return {(string|{status: bot.ErrorCode.<number>, value: *})} A stringified {@link bot.response.ResponseObject}.
+ */
+phantomjs.atoms.inject.action.isContentEditable = function(element) {
+    return bot.inject.executeScript(function(e) {
+        return e.isContentEditable;
+    }, [element], true);
+};
+
+/**
  * Focuses on the given element if it is not already the active element.
  *
  * @param {!{bot.inject.ELEMENT_KEY:string}} element The element to focus on.
