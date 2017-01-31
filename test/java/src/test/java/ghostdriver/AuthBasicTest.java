@@ -1,6 +1,7 @@
 /*
 This file is part of the GhostDriver by Ivan De Marino <http://ivandemarino.me>.
 
+Copyright (c) 2017, Jason Gowan
 Copyright (c) 2012-2014, Ivan De Marino <http://ivandemarino.me>
 All rights reserved.
 
@@ -30,6 +31,8 @@ package ghostdriver;
 import static org.junit.Assert.assertTrue;
 
 import org.junit.Test;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
 
@@ -59,6 +62,20 @@ public class AuthBasicTest extends BaseTest {
         // we should be authorized
         driver.get(String.format("http://httpbin.org/basic-auth/%s/%s", userName, password));
         assertTrue(driver.getPageSource().contains("authenticated"));
+    }
+
+    // we should be able to interact with pages that have content security policies
+    @Test
+    public void canSendKeysAndClickOnPageWithCSP() {
+        // Get Driver Instance
+        WebDriver d = getDriver();
+
+        d.get("https://auth.cbox.naver.com/oauth/login/twitter?redirectUrl=http%3A%2F%2Fentertain.naver.com%2Fread%3Foid%3D213%26aid%3D0000929636");
+
+        WebElement element = d.findElement(By.id("username_or_email"));
+        element.sendKeys("jesg");
+        element = d.findElement(By.id("cancel"));
+        element.click();
     }
 
 }

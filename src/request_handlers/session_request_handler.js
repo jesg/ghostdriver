@@ -475,12 +475,9 @@ ghostdriver.SessionReqHand = function(session) {
 
     _getUrlCommand = function(req, res) {
         // Get the URL at which the Page currently is
-        var result = _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
-            require("./webdriver_atoms.js").get("execute_script"),
-            "return location.toString()",
-            []);
+        var result = _protoParent.getSessionCurrWindow.call(this, _session, req).url;
 
-        res.respondBasedOnResult(_session, res, result);
+        res.respondBasedOnResult(_session, res, {status: 0, value: result});
     },
 
     _postUrlCommand = function(req, res) {
@@ -624,14 +621,9 @@ ghostdriver.SessionReqHand = function(session) {
                 _log.debug("_postFrameCommand.element", JSON.stringify(postObj.id));
 
                 // Will use the Element JSON to find the frame name
-                frameName = currWindow.evaluate(
-                    require("./webdriver_atoms.js").get("execute_script"),
-                    "if (!arguments[0].name && !arguments[0].id) { " +
-                    "   arguments[0].name = '_random_name_id_' + new Date().getTime(); " +
-                    "   arguments[0].id = arguments[0].name; " +
-                    "} " +
-                    "return arguments[0].name || arguments[0].id;",
-                    [postObj.id]);
+                frameName = JSON.parse(currWindow.evaluate(
+                    require("./webdriver_atoms.js").get("frame_name"),
+                    postObj.id));
 
                 _log.debug("_postFrameCommand.frameName", frameName.value);
 

@@ -138,10 +138,9 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
     },
 
     _getLocationResult = function(req) {
-        return _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
-            require("./webdriver_atoms.js").get("execute_script"),
-            "return (" + require("./webdriver_atoms.js").get("get_location") + ")(arguments[0]);",
-            [_getJSON()]);
+        return JSON.parse(_protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
+            require("./webdriver_atoms.js").get("get_location"),
+            _getJSON()));
     },
 
     _getLocation = function(req) {
@@ -164,17 +163,15 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
         res.respondBasedOnResult(_session, req, locationRes);
     },
 
-    // must be scrolled into view
+    // scrolls the element into view
     _getLocationInViewResult = function (req) {
         var currWindow = _protoParent.getSessionCurrWindow.call(this, _session, req),
             frameOffset = _session.getFrameOffset(currWindow),
             locationRes;
 
-        locationRes = currWindow.evaluate(
-            require("./webdriver_atoms.js").get("execute_script"),
-            "return (" + require("./webdriver_atoms.js").get("get_location_in_view") + ")(arguments[0]);",
-            [_getJSON()]);
-;
+        locationRes = JSON.parse(_protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
+            require("./webdriver_atoms.js").get("get_location_in_view"),
+            _getJSON(), true));
 
         if(locationRes && locationRes.status !== 0) {
             return locationRes;
@@ -413,16 +410,9 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
     },
 
     _getNameCommand = function(req, res) {
-        var result = _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
-                require("./webdriver_atoms.js").get("execute_script"),
-                "return arguments[0].tagName;",
-                [_getJSON()]);
-
-        // Convert value to a lowercase string as per WebDriver JSONWireProtocol spec
-        // @see http://code.google.com/p/selenium/wiki/JsonWireProtocol#/session/:sessionId/element/:id/name
-        if(result.status === 0) {
-            result.value = result.value.toLowerCase();
-        }
+        var result = JSON.parse(_protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
+                require("./webdriver_atoms.js").get("get_name"),
+                _getJSON()));
 
         res.respondBasedOnResult(_session, req, result);
     },
@@ -456,10 +446,9 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
         var result;
 
         if (typeof(req.urlParsed.file) === "string" && req.urlParsed.file.length > 0) {
-            result = _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
-                require("./webdriver_atoms.js").get("execute_script"),
-                "return arguments[0].isSameNode(arguments[1]);",
-                [_getJSON(), _getJSON(req.urlParsed.file)]);
+            result = JSON.parse(_protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
+                require("./webdriver_atoms.js").get("equals"),
+                _getJSON(), _getJSON(req.urlParsed.file)));
 
             res.respondBasedOnResult(_session, req, result);
             return;

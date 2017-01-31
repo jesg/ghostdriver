@@ -151,7 +151,7 @@ public class CookieTest extends BaseTestWithServer {
         assertEquals(1, cookies.length);
         assertEquals("newCookie", cookies[0].getName());
         assertEquals("newValue", cookies[0].getValue());
-        assertEquals("localhost", cookies[0].getDomain());
+        assertEquals(".localhost", cookies[0].getDomain());
         assertEquals("/", cookies[0].getPath());
         assertEquals(false, cookies[0].isSecure());
         assertEquals(false, cookies[0].isHttpOnly());
