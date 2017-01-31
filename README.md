@@ -1,5 +1,37 @@
 this is my ghostdriver fork.  have fun!
 
+# Changelog
+
+## 1.3.0-beta.6
+
+* fix content security policy issue
+* remove unused touch atoms
+
+## 1.3.0-beta.5
+
+* fix sending keys to content editable elements
+* file upload compatible with phantomjs 2.5-beta
+* fix action chains with elements in iframes
+* add is_file_element atom
+* add is_content_editable atom
+* remove unused session storage atoms
+* remove unused local storage atoms
+
+## 1.3.0-beta.4
+
+* add command line option `--remoteHost` (@madhavajay)
+
+## 1.3.0-beta.3
+
+* add default values to add_cookie
+
+## 1.3.0-beta.2
+
+* stable npm package
+* fix custom headers
+* fix default timeouts
+* fix multiple file upload
+
 ---
 
 # Ghost Driver
