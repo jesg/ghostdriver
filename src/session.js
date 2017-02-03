@@ -115,6 +115,8 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
+    _capsPageBlacklistPref = "phantomjs.page.blacklist",
+    _capsPageWhitelistPref = "phantomjs.page.whitelist",
     _capsPageSettingsProxyPref = "proxy",
     _pageSettings = {},
     _pageZoomFactor = 1,
@@ -171,6 +173,36 @@ ghostdriver.Session = function(desiredCapabilities) {
         if (k.indexOf(_capsPageZoomFactor) === 0){
             _negotiatedCapabilities[k] = desiredCapabilities[k];
             _pageZoomFactor = desiredCapabilities[k];
+        }
+        if (k.indexOf(_capsPageBlacklistPref) === 0) {
+            const pageBlacklist = [];
+            const len = desiredCapabilities[k].length;
+            for(var i = 0; i < len; i++) {
+                pageBlacklist.push(new RegExp(desiredCapabilities[k][i]));
+            }
+            _pageBlacklistFilter = function(url, net) {
+                for(var i = 0; i < len; i++) {
+                    if(url.match(pageBlacklist[i])) {
+                        net.abort();
+                        _log.debug("blacklist abort " + url);
+                    }
+                }
+            }
+        }
+        if (k.indexOf(_capsPageWhitelistPref) === 0) {
+            const pageWhitelist = [];
+            const len = desiredCapabilities[k].length;
+            for(var i = 0; i < len; i++) {
+                pageWhitelist.push(new RegExp(desiredCapabilities[k][i]));
+            }
+            _pageWhitelistFilter = function(url, net) {
+                for(var i = 0; i < len; i++) {
+                    if(!url.match(pageWhitelist[i])) {
+                        net.abort();
+                        _log.debug("whitelist abort " + url);
+                    }
+                }
+            }
         }
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
@@ -437,7 +469,10 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.setOneShotCallback("onLoadFinished", function() {
             page.endTime = new Date();
         });
-        page.onResourceRequested = function (req) {
+        page.onResourceRequested = function (req, net) {
+            if(_pageWhitelistFilter) { _pageWhitelistFilter(req.url, net); }
+            if(_pageBlacklistFilter) { _pageBlacklistFilter(req.url, net); }
+
             _log.debug("page.onResourceRequested", JSON.stringify(req));
 
             // Register HTTP Request
