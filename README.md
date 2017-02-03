@@ -4,7 +4,7 @@ this is my ghostdriver fork.  have fun!
 
 ## 1.3.0-beta.7
 
-* add blacklist/whitlist capabilities
+* add blacklist/whitelist capabilities
 
 ## 1.3.0-beta.6
 
