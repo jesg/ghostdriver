@@ -2,6 +2,10 @@ this is my ghostdriver fork.  have fun!
 
 # Changelog
 
+## 1.3.0-beta.7
+
+* add blacklist/whitlist capabilities
+
 ## 1.3.0-beta.6
 
 * fix content security policy issue
