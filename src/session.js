@@ -117,6 +117,8 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
     _capsPageBlacklistPref = "phantomjs.page.blacklist",
     _capsPageWhitelistPref = "phantomjs.page.whitelist",
+    _pageBlacklistFilter,
+    _pageWhitelistFilter,
     _capsPageSettingsProxyPref = "proxy",
     _pageSettings = {},
     _pageZoomFactor = 1,
@@ -191,12 +193,12 @@ ghostdriver.Session = function(desiredCapabilities) {
         }
         if (k.indexOf(_capsPageWhitelistPref) === 0) {
             const pageWhitelist = [];
-            const len = desiredCapabilities[k].length;
+            const len2 = desiredCapabilities[k].length;
             for(var i = 0; i < len; i++) {
                 pageWhitelist.push(new RegExp(desiredCapabilities[k][i]));
             }
             _pageWhitelistFilter = function(url, net) {
-                for(var i = 0; i < len; i++) {
+                for(var i = 0; i < len2; i++) {
                     if(!url.match(pageWhitelist[i])) {
                         net.abort();
                         _log.debug("whitelist abort " + url);
