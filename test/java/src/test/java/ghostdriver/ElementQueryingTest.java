@@ -109,10 +109,10 @@ public class ElementQueryingTest extends BaseTestWithServer {
         WebDriver d = getDriver();
         d.get(server.getBaseUrl());
 
-        assertEquals("The Title of The Item\n(Loads of other stuff)", d.findElement(By.className("item")).getText());
+        assertEquals("The Title of The Item\n\n(Loads of other stuff)", d.findElement(By.className("item")).getText());
         assertEquals("The Title of The Item", d.findElement(By.className("item")).findElement(By.tagName("h1")).getText());
-        assertEquals("The Title of The Item", d.findElement(By.className("item")).findElement(By.tagName("a")).getText());
-        assertEquals("The Title of The Item", d.findElement(By.className("item")).findElement(By.className("item-title")).getText());
+        assertEquals("The Title of The Item\n\n", d.findElement(By.className("item")).findElement(By.tagName("a")).getText());
+        assertEquals("The Title of The Item\n\n", d.findElement(By.className("item")).findElement(By.className("item-title")).getText());
     }
 
     @Test(expected = InvalidElementStateException.class)

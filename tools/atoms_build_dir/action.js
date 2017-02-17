@@ -39,6 +39,19 @@ goog.require('webdriver.atoms.element');
 goog.require('webdriver.chrome');
 
 /**
+ * W3C get element text.
+ *
+ *
+ * @param {!{bot.inject.ELEMENT_KEY:string}} element The element
+ * @return {(string|{status: bot.ErrorCode.<number>, value: *})} A stringified {@link bot.response.ResponseObject}.
+ */
+phantomjs.atoms.inject.action.w3cGetText = function(element) {
+    return bot.inject.executeScript(function(e) {
+        return e.innerText;
+    }, [element], true);
+};
+
+/**
  * Test if an element is a file input element.
  *
  * @param {!{bot.inject.ELEMENT_KEY:string}} element The element to test.

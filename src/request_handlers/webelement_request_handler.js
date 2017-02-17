@@ -437,7 +437,7 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
 
     _getTextCommand = function(req, res) {
         var result = _protoParent.getSessionCurrWindow.call(this, _session, req).evaluate(
-            require("./webdriver_atoms.js").get("get_text"),
+            require("./webdriver_atoms.js").get("w3c_get_text"),
             _getJSON());
         res.respondBasedOnResult(_session, req, result);
     },

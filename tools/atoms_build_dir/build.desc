@@ -80,6 +80,11 @@ js_fragment(name = "frame_name",
   function = "phantomjs.atoms.inject.action.frameName",
   deps = [ ":deps" ])
 
+js_fragment(name = "w3c_get_text",
+  module = "phantomjs.atoms.inject.action",
+  function = "phantomjs.atoms.inject.action.w3cGetText",
+  deps = [ ":deps" ])
+
 # List of Atoms that will be compiled for GhostDriver
 js_library(name = "build_atoms",
   deps = [
@@ -90,6 +95,7 @@ js_library(name = "build_atoms",
     ":get_location",
     ":get_location_in_view",
     ":frame_name",
+    ":w3c_get_text",
 
     "//javascript/atoms/fragments:execute_script",
     "//javascript/atoms/fragments:execute_async_script",
