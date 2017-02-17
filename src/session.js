@@ -66,6 +66,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         "rotatable" : false,                //< TODO Target is 1.1
         "acceptSslCerts" : false,           //< TODO
         "nativeEvents" : true,              //< TODO Only some commands are Native Events currently
+        "unhandledPromptBehavior" : null,
         "proxy" : {                         //< TODO Support more proxy options - PhantomJS does allow setting from command line
             "proxyType" : _const.PROXY_TYPES.DIRECT
         },
@@ -91,6 +92,9 @@ ghostdriver.Session = function(desiredCapabilities) {
         "rotatable"                 : _defaultCapabilities.rotatable,
         "acceptSslCerts"            : _defaultCapabilities.acceptSslCerts,
         "nativeEvents"              : _defaultCapabilities.nativeEvents,
+        "unhandledPromptBehavior"   : typeof(desiredCapabilities.unhandledPromptBehavior) === "undefined" ?
+            _defaultCapabilities.unhandledPromptBehavior :
+            desiredCapabilities.unhandledPromptBehavior,
         "proxy"                     : typeof(desiredCapabilities.proxy) === "undefined" ?
             _defaultCapabilities.proxy :
             desiredCapabilities.proxy,
@@ -117,6 +121,7 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
     _capsPageBlacklistPref = "phantomjs.page.blacklist",
     _capsPageWhitelistPref = "phantomjs.page.whitelist",
+    _capsUnhandledPromptBehavior = "unhandledPromptBehavior",
     _pageBlacklistFilter,
     _pageWhitelistFilter,
     _capsPageSettingsProxyPref = "proxy",
@@ -364,6 +369,37 @@ ghostdriver.Session = function(desiredCapabilities) {
         this[oneShotCallbackName].push(handlerFunc);
     },
 
+    _decoratePromptBehavior = function(newPage) {
+        var _unhandledPromptBehavior = _negotiatedCapabilities["unhandledPromptBehavior"],
+            confirmValue;
+
+        if (_unhandledPromptBehavior !== "accept" && _unhandledPromptBehavior !== "dismiss") {
+            return;
+        }
+
+        _log.info("_decoratePromptBehavior");
+
+        newPage.onAlert = function(msg) {
+            _log.debug("ALERT: " + msg);
+        }
+
+        newPage.onPrompt = function(msg, val) {
+            _log.debug("PROMPT: " + msg);
+            return val;
+        }
+
+        if (_unhandledPromptBehavior === "accept") {
+            confirmValue = true;
+        } else {
+            confirmValue = false;
+        }
+
+        newPage.onConfirm = function(msg) {
+            _log.debug("CONFIRM: " + msg);
+            return confirmValue;
+        }
+    },
+
     // Add any new page to the "_windows" container of this session
     _addNewPage = function(newPage) {
         _log.debug("_addNewPage");
@@ -516,6 +552,9 @@ ghostdriver.Session = function(desiredCapabilities) {
                 _clearPageLog(page);
             }
         };
+
+        _decoratePromptBehavior(page);
+
         // NOTE: The most common screen resolution used online is currently: 1366x768
         // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
         page.viewportSize = {
