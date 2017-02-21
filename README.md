@@ -2,6 +2,10 @@ this is my ghostdriver fork.  have fun!
 
 # Changelog
 
+## 1.3.0-beta.9
+
+* add unhandledPromptBehavior w3c capability
+
 ## 1.3.0-beta.8
 
 * fix bug in blacklist/whitelist capabilities
