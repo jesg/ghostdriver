@@ -241,13 +241,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             execTypeOpt = "apply";
         }
 
-        // Register Callbacks to grab any async event we are interested in
-        this.setOneShotCallback("onLoadFinished", function (status) {
-            _log.debug("_execFuncAndWaitForLoadDecorator", "onLoadFinished: " + status);
-
-            onLoadFinishedArgs = Array.prototype.slice.call(arguments);
-        });
-
+        thisPage._onLoadFinishedLatch = false;
         // Execute "code"
         if (execTypeOpt === "eval") {
             // Remove arguments used by this function before providing them to the target code.
@@ -272,10 +266,10 @@ ghostdriver.Session = function(desiredCapabilities) {
                 if (!_isLoading()) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
-                    if (onLoadFinishedArgs !== null) {
+                    if (thisPage._onLoadFinishedLatch) {
                         _log.debug("_execFuncAndWaitForLoadDecorator", "Handle Load Finish Event");
                         // Report the result of the "Load Finished" event
-                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
+                        onLoadFunc.apply(thisPage, Array.prototype.slice.call(arguments));
                     } else {
                         _log.debug("_execFuncAndWaitForLoadDecorator", "No Load Finish Event Detected");
                         // No page load was caused: just report "success"
@@ -433,8 +427,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.windowHandle = require("./third_party/uuid.js").v1();
 
         // 2. Initialize the One-Shot Callbacks
-        page["onLoadStarted"] = _oneShotCallbackFactory(page, "onLoadStarted");
-        page["onLoadFinished"] = _oneShotCallbackFactory(page, "onLoadFinished");
         page["onUrlChanged"] = _oneShotCallbackFactory(page, "onUrlChanged");
         page["onFilePicker"] = _oneShotCallbackFactory(page, "onFilePicker");
         page["onCallback"] = _oneShotCallbackFactory(page, "onCallback");
@@ -501,12 +493,22 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.resources = [];
         page.startTime = null;
         page.endTime = null;
-        page.setOneShotCallback("onLoadStarted", function() {
+
+        // register onLoad callbacks to detect page load
+        page._onLoadLatch = false;
+        page._onLoadFinishedLatch = false;
+        page.onLoadStarted = function() {
+            page._onLoadLatch = true;
             page.startTime = new Date();
-        });
-        page.setOneShotCallback("onLoadFinished", function() {
+            _log.debug("page.onLoadStarted");
+        };
+        page.onLoadFinished = function() {
+            page._onLoadLatch = false;
+            page._onLoadFinishedLatch = true;
             page.endTime = new Date();
-        });
+            _log.debug("page.onLoadFinished");
+        };
+
         page.onResourceRequested = function (req, net) {
             if(_pageWhitelistFilter) { _pageWhitelistFilter(req.url, net); }
             if(_pageBlacklistFilter) { _pageBlacklistFilter(req.url, net); }
@@ -582,10 +584,11 @@ ghostdriver.Session = function(desiredCapabilities) {
      * @returns "true" if at least 1 window is loading.
      */
     _isLoading = function() {
-        var wHandle;
+        var wHandle, _window;
 
         for (wHandle in _windows) {
-            if (_windows[wHandle].loading) {
+            _window = _windows[wHandle];
+            if (_window._onLoadLatch || (_window.loadingProgress > 0 && _window.loadingProgress < 100)) {
                 return true;
             }
         }
