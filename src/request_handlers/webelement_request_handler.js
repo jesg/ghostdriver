@@ -261,6 +261,13 @@ ghostdriver.WebElementReqHand = function(idOrElement, session) {
             return interactableRes;
         }
 
+        if (!interactableRes.value) {
+            return {
+                status: _errors.FAILED_CMD_STATUS_CODES.ElementNotVisible,
+                value: {message: "Element is not displayed"}
+            };
+        }
+
         coords = _getPosition();
         if (coords && coords.status !== 0) {
             return coords;
