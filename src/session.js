@@ -66,6 +66,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         "rotatable" : false,                //< TODO Target is 1.1
         "acceptSslCerts" : false,           //< TODO
         "nativeEvents" : true,              //< TODO Only some commands are Native Events currently
+        "unhandledPromptBehavior" : null,
         "proxy" : {                         //< TODO Support more proxy options - PhantomJS does allow setting from command line
             "proxyType" : _const.PROXY_TYPES.DIRECT
         },
@@ -91,6 +92,9 @@ ghostdriver.Session = function(desiredCapabilities) {
         "rotatable"                 : _defaultCapabilities.rotatable,
         "acceptSslCerts"            : _defaultCapabilities.acceptSslCerts,
         "nativeEvents"              : _defaultCapabilities.nativeEvents,
+        "unhandledPromptBehavior"   : typeof(desiredCapabilities.unhandledPromptBehavior) === "undefined" ?
+            _defaultCapabilities.unhandledPromptBehavior :
+            desiredCapabilities.unhandledPromptBehavior,
         "proxy"                     : typeof(desiredCapabilities.proxy) === "undefined" ?
             _defaultCapabilities.proxy :
             desiredCapabilities.proxy,
@@ -103,9 +107,9 @@ ghostdriver.Session = function(desiredCapabilities) {
     // Interesting details here: {@link http://stackoverflow.com/a/4995054}.
     _max32bitInt = Math.pow(2, 31) -1,      //< Max 32bit Int
     _timeouts = {
-        "script"            : _max32bitInt,
-        "implicit"          : 200,          //< 200ms
-        "page load"         : _max32bitInt,
+        "script"            : 30000,
+        "implicit"          : 0,
+        "page load"         : 300000,
     },
     _windows = {},  //< NOTE: windows are "webpage" in Phantom-dialect
     _currentWindowHandle = null,
@@ -115,6 +119,11 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageSettingsPref = "phantomjs.page.settings.",
     _capsPageCustomHeadersPref = "phantomjs.page.customHeaders.",
     _capsPageZoomFactor = "phantomjs.page.zoomFactor",
+    _capsPageBlacklistPref = "phantomjs.page.blacklist",
+    _capsPageWhitelistPref = "phantomjs.page.whitelist",
+    _capsUnhandledPromptBehavior = "unhandledPromptBehavior",
+    _pageBlacklistFilter,
+    _pageWhitelistFilter,
     _capsPageSettingsProxyPref = "proxy",
     _pageSettings = {},
     _pageZoomFactor = 1,
@@ -172,6 +181,36 @@ ghostdriver.Session = function(desiredCapabilities) {
             _negotiatedCapabilities[k] = desiredCapabilities[k];
             _pageZoomFactor = desiredCapabilities[k];
         }
+        if (k.indexOf(_capsPageBlacklistPref) === 0) {
+            const pageBlacklist = [];
+            const len = desiredCapabilities[k].length;
+            for(var i = 0; i < len; i++) {
+                pageBlacklist.push(new RegExp(desiredCapabilities[k][i]));
+            }
+            _pageBlacklistFilter = function(url, net) {
+                for(var i = 0; i < len; i++) {
+                    if(url.match(pageBlacklist[i])) {
+                        net.abort();
+                        _log.debug("blacklist abort " + url);
+                    }
+                }
+            }
+        }
+        if (k.indexOf(_capsPageWhitelistPref) === 0) {
+            const pageWhitelist = [];
+            const len2 = desiredCapabilities[k].length;
+            for(var i = 0; i < len; i++) {
+                pageWhitelist.push(new RegExp(desiredCapabilities[k][i]));
+            }
+            _pageWhitelistFilter = function(url, net) {
+                for(var i = 0; i < len2; i++) {
+                    if(!url.match(pageWhitelist[i])) {
+                        net.abort();
+                        _log.debug("whitelist abort " + url);
+                    }
+                }
+            }
+        }
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
             phantom.setProxy(proxySettings["ip"], proxySettings["port"], proxySettings["proxyType"], proxySettings["user"], proxySettings["password"]);
@@ -202,13 +241,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             execTypeOpt = "apply";
         }
 
-        // Register Callbacks to grab any async event we are interested in
-        this.setOneShotCallback("onLoadFinished", function (status) {
-            _log.debug("_execFuncAndWaitForLoadDecorator", "onLoadFinished: " + status);
-
-            onLoadFinishedArgs = Array.prototype.slice.call(arguments);
-        });
-
+        thisPage._onLoadFinishedLatch = false;
         // Execute "code"
         if (execTypeOpt === "eval") {
             // Remove arguments used by this function before providing them to the target code.
@@ -233,10 +266,12 @@ ghostdriver.Session = function(desiredCapabilities) {
                 if (!_isLoading()) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
-                    if (onLoadFinishedArgs !== null) {
+                    if (!thisPage && thisPage._onLoadFinishedLatch) {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "Handle Load Finish Event");
                         // Report the result of the "Load Finished" event
-                        onLoadFunc.apply(thisPage, onLoadFinishedArgs);
+                        onLoadFunc.apply(thisPage, Array.prototype.slice.call(arguments));
                     } else {
+                        _log.debug("_execFuncAndWaitForLoadDecorator", "No Load Finish Event Detected");
                         // No page load was caused: just report "success"
                         onLoadFunc.call(thisPage, "success");
                     }
@@ -328,6 +363,37 @@ ghostdriver.Session = function(desiredCapabilities) {
         this[oneShotCallbackName].push(handlerFunc);
     },
 
+    _decoratePromptBehavior = function(newPage) {
+        var _unhandledPromptBehavior = _negotiatedCapabilities["unhandledPromptBehavior"],
+            confirmValue;
+
+        if (_unhandledPromptBehavior !== "accept" && _unhandledPromptBehavior !== "dismiss") {
+            return;
+        }
+
+        _log.info("_decoratePromptBehavior");
+
+        newPage.onAlert = function(msg) {
+            _log.debug("ALERT: " + msg);
+        }
+
+        newPage.onPrompt = function(msg, val) {
+            _log.debug("PROMPT: " + msg);
+            return val;
+        }
+
+        if (_unhandledPromptBehavior === "accept") {
+            confirmValue = true;
+        } else {
+            confirmValue = false;
+        }
+
+        newPage.onConfirm = function(msg) {
+            _log.debug("CONFIRM: " + msg);
+            return confirmValue;
+        }
+    },
+
     // Add any new page to the "_windows" container of this session
     _addNewPage = function(newPage) {
         _log.debug("_addNewPage");
@@ -361,8 +427,6 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.windowHandle = require("./third_party/uuid.js").v1();
 
         // 2. Initialize the One-Shot Callbacks
-        page["onLoadStarted"] = _oneShotCallbackFactory(page, "onLoadStarted");
-        page["onLoadFinished"] = _oneShotCallbackFactory(page, "onLoadFinished");
         page["onUrlChanged"] = _oneShotCallbackFactory(page, "onUrlChanged");
         page["onFilePicker"] = _oneShotCallbackFactory(page, "onFilePicker");
         page["onCallback"] = _oneShotCallbackFactory(page, "onCallback");
@@ -387,8 +451,11 @@ ghostdriver.Session = function(desiredCapabilities) {
         }
 
         // 7. Applying Page custom headers received via capabilities
-        page.customHeaders = _pageCustomHeaders;
-        
+        // fix custom headers per ariya/phantomjs#13621 and detro/ghostdriver#489
+        for(var k in _pageCustomHeaders) {
+            page.customHeaders[k] = _pageCustomHeaders[k];
+        }
+
         // 8. Applying Page zoomFactor
         page.zoomFactor = _pageZoomFactor;
 
@@ -426,13 +493,26 @@ ghostdriver.Session = function(desiredCapabilities) {
         page.resources = [];
         page.startTime = null;
         page.endTime = null;
-        page.setOneShotCallback("onLoadStarted", function() {
+
+        // register onLoad callbacks to detect page load
+        page._onLoadLatch = false;
+        page._onLoadFinishedLatch = false;
+        page.onLoadStarted = function() {
+            page._onLoadLatch = true;
             page.startTime = new Date();
-        });
-        page.setOneShotCallback("onLoadFinished", function() {
+            _log.debug("page.onLoadStarted");
+        };
+        page.onLoadFinished = function() {
+            page._onLoadLatch = false;
+            page._onLoadFinishedLatch = true;
             page.endTime = new Date();
-        });
-        page.onResourceRequested = function (req) {
+            _log.debug("page.onLoadFinished");
+        };
+
+        page.onResourceRequested = function (req, net) {
+            if(_pageWhitelistFilter) { _pageWhitelistFilter(req.url, net); }
+            if(_pageBlacklistFilter) { _pageBlacklistFilter(req.url, net); }
+
             _log.debug("page.onResourceRequested", JSON.stringify(req));
 
             // Register HTTP Request
@@ -475,6 +555,15 @@ ghostdriver.Session = function(desiredCapabilities) {
             }
         };
 
+        _decoratePromptBehavior(page);
+
+        // NOTE: The most common screen resolution used online is currently: 1366x768
+        // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
+        page.viewportSize = {
+            width   : 1366,
+            height  : 768
+        };
+
         _log.info("page.settings", JSON.stringify(page.settings));
         _log.info("page.customHeaders: ", JSON.stringify(page.customHeaders));
         _log.info("page.zoomFactor: ", JSON.stringify(page.zoomFactor));
@@ -495,15 +584,15 @@ ghostdriver.Session = function(desiredCapabilities) {
      * @returns "true" if at least 1 window is loading.
      */
     _isLoading = function() {
-        var wHandle;
+        var wHandle, _window;
 
         for (wHandle in _windows) {
-            if (_windows[wHandle].loading) {
+            _window = _windows[wHandle];
+            if (_window._onLoadLatch || (_window.loadingProgress > 0 && _window.loadingProgress < 100)) {
                 return true;
             }
         }
 
-        // If we arrived here, means that no window is loading
         return false;
     },
 
@@ -718,6 +807,26 @@ ghostdriver.Session = function(desiredCapabilities) {
         }
 
         return logTypes;
+    },
+
+    _getFrameOffset = function(page) {
+        return page.evaluate(function() {
+            var win = window,
+                offset = {top: 0, left: 0},
+                style,
+                rect;
+
+            while(win.frameElement) {
+                rect = win.frameElement.getClientRects()[0];
+                style = win.getComputedStyle(win.frameElement);
+                win = win.parent;
+
+                offset.top += rect.top + parseInt(style.getPropertyValue('padding-top'), 10);
+                offset.left += rect.left + parseInt(style.getPropertyValue('padding-left'), 10);
+            }
+
+            return offset;
+        });
     };
 
     // Initialize the Session.
@@ -752,6 +861,7 @@ ghostdriver.Session = function(desiredCapabilities) {
         timeoutNames : _const.TIMEOUT_NAMES,
         isLoading : _isLoading,
         getLog: _getLog,
-        getLogTypes: _getLogTypes
+        getLogTypes: _getLogTypes,
+        getFrameOffset: _getFrameOffset
     };
 };
