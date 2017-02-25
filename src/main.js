@@ -62,6 +62,7 @@ phantom.injectJs("request_handlers/router_request_handler.js");
 phantom.injectJs("webelementlocator.js");
 
 try {
+    _log.info("Main", "Ghost Driver Version " + ghostdriver.version);
     // HTTP Request Router
     router = new ghostdriver.RouterReqHand();
 
