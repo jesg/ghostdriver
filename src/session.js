@@ -266,7 +266,7 @@ ghostdriver.Session = function(desiredCapabilities) {
                 if (!_isLoading()) {               //< page finished loading
                     _log.debug("_execFuncAndWaitForLoadDecorator", "Page Loading in Session: false");
 
-                    if (thisPage._onLoadFinishedLatch) {
+                    if (!thisPage && thisPage._onLoadFinishedLatch) {
                         _log.debug("_execFuncAndWaitForLoadDecorator", "Handle Load Finish Event");
                         // Report the result of the "Load Finished" event
                         onLoadFunc.apply(thisPage, Array.prototype.slice.call(arguments));
