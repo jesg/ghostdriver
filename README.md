@@ -2,6 +2,11 @@ this is my ghostdriver fork.  have fun!
 
 # Changelog
 
+## 1.3.0-beta.10
+
+* handle page load in phantomjs 2.5.0
+* fix throw ElementNotVisible on send_keys when file element is not visible
+
 ## 1.3.0-beta.9
 
 * add unhandledPromptBehavior w3c capability
