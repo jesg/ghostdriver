@@ -47,7 +47,7 @@ compileJava {
 
 ext.seleniumVersion         = "3.0.0"
 project.archivesBaseName    = project.name
-project.version             = "$seleniumVersion-beta1"
+project.version             = "$seleniumVersion"
 
 ext.projectGroupId          = "com.github.detro"
 ext.projectArtifactId       = "phantomjsdriver"

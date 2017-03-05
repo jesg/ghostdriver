@@ -122,6 +122,9 @@ ghostdriver.Session = function(desiredCapabilities) {
     _capsPageBlacklistPref = "phantomjs.page.blacklist",
     _capsPageWhitelistPref = "phantomjs.page.whitelist",
     _capsUnhandledPromptBehavior = "unhandledPromptBehavior",
+    _capsLoggingPref = "loggingPrefs",
+    _capsBrowserLoggerPref = "OFF",
+    _capsHarLoggerPref = "OFF",
     _pageBlacklistFilter,
     _pageWhitelistFilter,
     _capsPageSettingsProxyPref = "proxy",
@@ -189,7 +192,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             }
             _pageBlacklistFilter = function(url, net) {
                 for(var i = 0; i < len; i++) {
-                    if(url.match(pageBlacklist[i])) {
+                    if(url.search(pageBlacklist[i]) !== -1) {
                         net.abort();
                         _log.debug("blacklist abort " + url);
                     }
@@ -204,7 +207,7 @@ ghostdriver.Session = function(desiredCapabilities) {
             }
             _pageWhitelistFilter = function(url, net) {
                 for(var i = 0; i < len2; i++) {
-                    if(!url.match(pageWhitelist[i])) {
+                    if(url.search(pageWhitelist[i]) === -1) {
                         net.abort();
                         _log.debug("whitelist abort " + url);
                     }
@@ -214,6 +217,14 @@ ghostdriver.Session = function(desiredCapabilities) {
         if (k.indexOf(_capsPageSettingsProxyPref) === 0) {
             proxySettings = _getProxySettingsFromCapabilities(desiredCapabilities[k]);
             phantom.setProxy(proxySettings["ip"], proxySettings["port"], proxySettings["proxyType"], proxySettings["user"], proxySettings["password"]);
+        }
+        if (k.indexOf(_capsLoggingPref) === 0) {
+            if (desiredCapabilities[k][_const.LOG_TYPES.BROWSER]) {
+                _capsBrowserLoggerPref = desiredCapabilities[k][_const.LOG_TYPES.BROWSER] || _capsBrowserLoggerPref;
+            }
+            if (desiredCapabilities[k][_const.LOG_TYPES.HAR]) {
+                _capsHarLoggerPref = desiredCapabilities[k][_const.LOG_TYPES.HAR] || _capsHarLoggerPref;
+            }
         }
     }
 
@@ -452,14 +463,17 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         // 7. Applying Page custom headers received via capabilities
         // fix custom headers per ariya/phantomjs#13621 and detro/ghostdriver#489
-        for(var k in _pageCustomHeaders) {
-            page.customHeaders[k] = _pageCustomHeaders[k];
+        if ("Accept-Encoding" in _pageCustomHeaders) {
+            _log.warn("Custom header \"Accept-Encoding\" is not supported.  see ariya/phantomjs#13621");
+            delete _pageCustomHeaders["Accept-Encoding"]
         }
+        page.customHeaders = _pageCustomHeaders;
 
         // 8. Applying Page zoomFactor
         page.zoomFactor = _pageZoomFactor;
 
         // 9. Log Page internal errors
+        page.browserLog = ghostdriver.webdriver_logger.create(_capsBrowserLoggerPref);
         page.onError = function(errorMsg, errorStack) {
             var stack = '';
 
@@ -480,17 +494,14 @@ ghostdriver.Session = function(desiredCapabilities) {
         };
 
         // 10. Log Page console messages
-        page.browserLog = [];
         page.onConsoleMessage = function(msg, lineNum, sourceId) {
             // Log as debug
-            _log.debug("page.onConsoleMessage", msg);
-
             // Register as part of the "browser" log
             page.browserLog.push(_createLogEntry("INFO", msg + " (" + sourceId + ":" + lineNum + ")"));
         };
 
         // 11. Log Page network activity
-        page.resources = [];
+        page.resources = ghostdriver.webdriver_logger.create(_capsHarLoggerPref);
         page.startTime = null;
         page.endTime = null;
 
@@ -516,37 +527,44 @@ ghostdriver.Session = function(desiredCapabilities) {
             _log.debug("page.onResourceRequested", JSON.stringify(req));
 
             // Register HTTP Request
-            page.resources[req.id] = {
-                request: req,
-                startReply: null,
-                endReply: null,
-                error: null
-            };
+            page.resources.push({
+                id: req.id,
+                request: req
+            });
         };
         page.onResourceReceived = function (res) {
             _log.debug("page.onResourceReceived", JSON.stringify(res));
 
             // Register HTTP Response
-            page.resources[res.id] || (page.resources[res.id] = {});
             if (res.stage === 'start') {
-                page.resources[res.id].startReply = res;
+                page.resources.push({
+                    id: res.id,
+                    startReply: res
+                });
             } else if (res.stage === 'end') {
-                page.resources[res.id].endReply = res;
+                page.resources.push({
+                    id: res.id,
+                    endReply: res
+                });
             }
         };
         page.onResourceError = function(resError) {
             _log.debug("page.onResourceError", JSON.stringify(resError));
 
             // Register HTTP Error
-            page.resources[resError.id] || (page.resources[resError.id] = {});
-            page.resources[resError.id].error = resError;
+            page.resources.push({
+                id: resError.id,
+                error: resError
+            });
         };
         page.onResourceTimeout = function(req) {
             _log.debug("page.onResourceTimeout", JSON.stringify(req));
 
             // Register HTTP Timeout
-            page.resources[req.id] || (page.resources[req.id] = {});
-            page.resources[req.id].error = req;
+            page.resources.push({
+                id: req.id,
+                error: req
+            });
         };
         page.onNavigationRequested = function(url, type, willNavigate, main) {
             // Clear page log before page loading
@@ -557,8 +575,9 @@ ghostdriver.Session = function(desiredCapabilities) {
 
         _decoratePromptBehavior(page);
 
-        // NOTE: The most common screen resolution used online is currently: 1366x768
+        // NOTE: The most common desktop screen resolution used online is currently: 1366x768
         // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
+        // Jan 2017
         page.viewportSize = {
             width   : 1366,
             height  : 768
@@ -603,8 +622,8 @@ ghostdriver.Session = function(desiredCapabilities) {
      * @private
      */
     _clearPageLog = function (page) {
-        page.resources = [];
-        page.browserLog = [];
+        page.resources.log = [];
+        page.browserLog.log = [];
     },
 
     _getWindow = function(handleOrName) {
@@ -773,25 +792,49 @@ ghostdriver.Session = function(desiredCapabilities) {
     },
 
     _getLog = function (type) {
-        var har = require('./third_party/har.js'),
-            page, tmp;
+        var har, i, entry, attrName,
+            page, tmp, tmpResMap;
 
         // Return "HAR" as Log Type "har"
         if (type === _const.LOG_TYPES.HAR) {
+            har = require('./third_party/har.js');
             page = _getCurrentWindow();
+
+            tmpResMap = {};
+            for (i = 0; i < page.resources.log.length; i++) {
+                entry = page.resources.log[i];
+                if (!tmpResMap[entry.id]) {
+                    tmpResMap[entry.id] = {
+                        id: entry.id,
+                        request: null,
+                        startReply: null,
+                        endReply: null,
+                        error: null
+                    }
+                }
+                for (attrName in entry) {
+                    tmpResMap[entry.id][attrName] = entry[attrName];
+                }
+            }
+            page.resources.log = [];
+            tmp = Object.keys(tmpResMap).sort();
+            for (i in tmp) {
+                page.resources.push(tmpResMap[tmp[i]]);
+            }
+
             tmp = [];
             tmp.push(_createLogEntry(
                 "INFO",
-                JSON.stringify(har.createHar(page, page.resources))));
-            page.resources = [];
+                JSON.stringify(har.createHar(page, page.resources.log))));
+            page.resources.log = [];
             return tmp;
         }
 
         // Return Browser Console Log
         if (type === _const.LOG_TYPES.BROWSER) {
             page = _getCurrentWindow();
-            tmp = page.browserLog;
-            page.browserLog = [];
+            tmp = page.browserLog.log;
+            page.browserLog.log = [];
             return tmp;
         }
 

@@ -29,19 +29,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package ghostdriver;
 
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import org.junit.Test;
-import org.junit.Ignore;
 import org.openqa.selenium.By;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriverException;
+import org.junit.BeforeClass;
 
-public class AuthBasicTest extends BaseTest {
+import ghostdriver.server.HttpRequestCallback;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+public class AuthBasicTest extends BaseTestWithServer {
 
     // credentials for testing, no one would ever use these
     private final static String userName = "admin";
     private final static String password = "admin";
+
+    @BeforeClass
+    public static void setCustomHeaders() {
+        sCaps.setCapability(
+                "phantomjs.page.customHeaders.Accept-Encoding",
+                "gzip, deflate"
+                );
+    }
 
     @Override
     public void prepareDriver() throws Exception {
@@ -66,20 +82,35 @@ public class AuthBasicTest extends BaseTest {
     }
 
     // we should be able to interact with pages that have content security policies
-    // phantomjs loads a plain text file
-    // received "contentType":"text/plain; charset=UTF-8, text/html;charset=utf-8"
-    @Ignore
+    // @Ignore
     @Test
     public void canSendKeysAndClickOnPageWithCSP() {
+        server.setHttpHandler("GET", new HttpRequestCallback() {
+            @Override
+            public void call(HttpServletRequest req, HttpServletResponse res) throws IOException {
+                res.addHeader("Content-Security-Policy", "default-src 'self'; script-src 'self';");
+                res.getOutputStream().println(
+                        "<html>\n" +
+                                "<head>\n" +
+                                "</head>\n" +
+                                "<body>\n" +
+                                "<input id='username' />\n" +
+                                "</body>\n" +
+                                "</html>");
+            }
+        });
+
         // Get Driver Instance
         WebDriver d = getDriver();
+        d.get(server.getBaseUrl());
 
-        d.get("https://auth.cbox.naver.com/oauth/login/twitter?redirectUrl=http%3A%2F%2Fentertain.naver.com%2Fread%3Foid%3D213%26aid%3D0000929636");
-        System.out.println(d.getPageSource());
-        WebElement element = d.findElement(By.id("username_or_email"));
+        WebElement element = d.findElement(By.id("username"));
         element.sendKeys("jesg");
-        element = d.findElement(By.id("cancel"));
         element.click();
+        try {
+            ((JavascriptExecutor) d).executeScript("1+1");
+            fail("we should not be able to eval javascript on csp page");
+        } catch (WebDriverException e) {}
     }
 
 }

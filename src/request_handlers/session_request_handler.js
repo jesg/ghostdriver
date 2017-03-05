@@ -329,11 +329,12 @@ ghostdriver.SessionReqHand = function(session) {
         // NOTE: PhantomJS is headless, so there is no "screen" to maximize to
         // or "window" resize to that.
         //
-        // NOTE: The most common screen resolution used online is currently: 1366x768
+        // NOTE: The most common desktop screen resolution used online is currently: 1366x768
         // See http://gs.statcounter.com/#resolution-ww-monthly-201307-201312.
+        // Jan 2017
         targetWindow.viewportSize = {
-            width   : 1366,
-            height  : 768
+            width   : 1920,
+            height  : 1080
         };
 
         res.success(_session.getId());

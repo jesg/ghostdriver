@@ -31,15 +31,31 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.phantomjs.PhantomJSDriverService;
+import org.openqa.selenium.By;
 
+import ghostdriver.server.HttpRequestCallback;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertEquals;
 
-public class CustomHeadersTest extends BaseTest {
+public class CustomHeadersTest extends BaseTestWithServer {
+
+    private static final String CUSTOM_HEADER_NAME = "My-Custom-Header";
+    private static final String CUSTOM_HEADER = "my value";
+
     @BeforeClass
     public static void setCustomHeaders() {
         sCaps.setCapability(
                 "phantomjs.page.customHeaders.Accept-Encoding",
                 "gzip, deflate"
+                );
+        sCaps.setCapability(
+                "phantomjs.page.customHeaders."+CUSTOM_HEADER_NAME,
+                CUSTOM_HEADER
         );
     }
 
@@ -47,9 +63,29 @@ public class CustomHeadersTest extends BaseTest {
     @Test
     public void testAcceptEncodingHeader() {
         WebDriver d = getDriver();
-
         d.get("https://cn.bing.com");
         assertFalse(d.getTitle().isEmpty());
     }
 
+    @Test
+    public void testCustomHeaders() {
+        server.setHttpHandler("GET", new HttpRequestCallback() {
+            @Override
+            public void call(HttpServletRequest req, HttpServletResponse res) throws IOException {
+                res.getOutputStream().println(
+                        "<html>\n" +
+                                "<head>\n" +
+                                "</head>\n" +
+                                "<body>\n" +
+                                "<div name=\"" + CUSTOM_HEADER_NAME + "\" value=\"" + req.getHeader(CUSTOM_HEADER_NAME) + "\"></div>\n" +
+                                "</body>\n" +
+                                "</html>");
+            }
+        });
+
+        WebDriver d = getDriver();
+        d.get(server.getBaseUrl());
+        String actualCustomHeader = d.findElement(By.name(CUSTOM_HEADER_NAME)).getAttribute("value");
+        assertEquals(CUSTOM_HEADER, actualCustomHeader);
+    }
 }
