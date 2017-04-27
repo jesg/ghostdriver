@@ -231,7 +231,6 @@ public class PhantomJSDriverService extends DriverService {
      * @return The driver executable as a {@link File} object
      * @throws IllegalStateException If the executable not found or cannot be executed
      */
-    @SuppressWarnings("deprecation")
     protected static File findPhantomJS(Capabilities desiredCapabilities, String docsLink,
                                         String downloadLink) {
         String phantomjspath;
